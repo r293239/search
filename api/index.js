@@ -11,7 +11,6 @@ const HEADERS = {
     "Content-Type": "application/json"
 };
 
-// Simple password hashing
 function hashPassword(password) {
     return crypto.createHash('sha256').update(password + 'search-engine-salt').digest('hex');
 }
@@ -114,6 +113,25 @@ async function deleteUserById(objectId) {
     return parseRequest('DELETE', `/classes/Users/${objectId}`);
 }
 
+async function getUserData(userId) {
+    const where = encodeURIComponent(JSON.stringify({ userId }));
+    const data = await parseRequest('GET', `/classes/UserData?where=${where}&limit=1`);
+    return (data.results && data.results.length > 0) ? data.results[0] : null;
+}
+
+async function saveUserData(userId, history, saved) {
+    const existing = await getUserData(userId);
+    if (existing) {
+        return parseRequest('PUT', `/classes/UserData/${existing.objectId}`, {
+            userId, history, saved
+        });
+    } else {
+        return parseRequest('POST', '/classes/UserData', {
+            userId, history, saved
+        });
+    }
+}
+
 // ===== QUEUE HELPERS =====
 async function getQueue() {
     const where = encodeURIComponent(JSON.stringify({ status: 'pending' }));
@@ -124,8 +142,6 @@ async function getQueue() {
 async function bulkAddToQueue(urls) {
     let count = 0;
     let skipped = 0;
-    
-    // Get existing pending URLs
     const pending = await getQueue();
     const existingUrls = new Set(pending.map(p => p.url));
     
@@ -134,18 +150,12 @@ async function bulkAddToQueue(urls) {
             skipped++;
             continue;
         }
-        
-        const result = await parseRequest('POST', '/classes/CrawlQueue', {
-            url,
-            status: 'pending'
-        });
-        
+        const result = await parseRequest('POST', '/classes/CrawlQueue', { url, status: 'pending' });
         if (result.objectId) {
             count++;
             existingUrls.add(url);
         }
     }
-    
     return { count, skipped };
 }
 
@@ -161,12 +171,10 @@ async function clearQueue() {
     return { cleared: pending.length };
 }
 
-// ===== STATS =====
 async function getStats() {
     const index = await searchEngine.loadIndex();
     const pending = await getQueue();
     const users = await getAllUsers();
-    
     return {
         indexed: index ? (index.doc_count || index.urls.length || 0) : 0,
         terms: index ? Object.keys(index.index || {}).length : 0,
@@ -175,11 +183,9 @@ async function getStats() {
     };
 }
 
-// ===== INDEX PAGES =====
 async function getIndexPages() {
     const index = await searchEngine.loadIndex();
     if (!index) return [];
-    
     return (index.urls || []).map((url, i) => ({
         url,
         title: index.titles[i] || 'Untitled',
@@ -225,7 +231,7 @@ module.exports = async (req, res) => {
         return;
     }
 
-    // POST - Search, Auth, Admin
+    // POST - Auth, Admin, User data
     if (req.method === 'POST') {
         let body = '';
         req.on('data', chunk => body += chunk);
@@ -233,7 +239,7 @@ module.exports = async (req, res) => {
             let data;
             try { data = JSON.parse(body || '{}'); } catch(e) { data = {}; }
             
-            const action = data.action || 'search';
+            const action = data.action || '';
 
             // ===== AUTH =====
             if (action === 'login') {
@@ -246,7 +252,6 @@ module.exports = async (req, res) => {
                 let user = await getUser(username);
                 
                 if (!user) {
-                    // First user is admin, others are viewers
                     const allUsers = await getAllUsers();
                     const role = allUsers.length === 0 ? 'admin' : 'viewer';
                     const created = await createUser(username, password, role);
@@ -261,7 +266,6 @@ module.exports = async (req, res) => {
                     return;
                 }
 
-                // Verify password
                 if (user.password !== hashPassword(password)) {
                     res.status(401).json({ error: 'Invalid password' });
                     return;
@@ -278,51 +282,84 @@ module.exports = async (req, res) => {
                 return;
             }
 
-            // ===== ADMIN ACTIONS (require auth) =====
-            
-            // Bulk upload
-            if (action === 'bulkUpload') {
-                const { urls, username, role } = data;
-                
-                // Check permissions
-                if (!username || !role || role === 'viewer') {
-                    res.status(403).json({ error: 'Permission denied. Editors and admins only.' });
+            // ===== USER DATA =====
+            if (action === 'saveUser') {
+                const { user } = data;
+                if (!user || !user.email) {
+                    res.status(400).json({ error: 'Invalid user' });
                     return;
                 }
+                // Just ensure user exists in Users table
+                let existing = await getUser(user.email);
+                if (!existing) {
+                    await createUser(user.email, 'oauth-' + Date.now(), 'viewer');
+                }
+                res.status(200).json({ success: true });
+                return;
+            }
 
+            if (action === 'getUserData') {
+                const { userId } = data;
+                const userData = await getUserData(userId);
+                res.status(200).json({
+                    history: userData ? userData.history : [],
+                    saved: userData ? userData.saved : []
+                });
+                return;
+            }
+
+            if (action === 'saveHistory') {
+                const { userId, history } = data;
+                const existing = await getUserData(userId);
+                const saved = existing ? existing.saved : [];
+                await saveUserData(userId, history, saved);
+                res.status(200).json({ success: true });
+                return;
+            }
+
+            if (action === 'savePages') {
+                const { userId, saved } = data;
+                const existing = await getUserData(userId);
+                const history = existing ? existing.history : [];
+                await saveUserData(userId, history, saved);
+                res.status(200).json({ success: true });
+                return;
+            }
+
+            // ===== ADMIN =====
+            if (action === 'bulkUpload') {
+                const { urls, username, role } = data;
+                if (!username || !role || role === 'viewer') {
+                    res.status(403).json({ error: 'Permission denied' });
+                    return;
+                }
                 if (!urls || !Array.isArray(urls) || urls.length === 0) {
                     res.status(400).json({ error: 'No URLs provided' });
                     return;
                 }
-
                 const result = await bulkAddToQueue(urls);
                 res.status(200).json({ success: true, ...result });
                 return;
             }
 
-            // Get queue
             if (action === 'getQueue') {
                 const queue = await getQueue();
                 res.status(200).json({ queue });
                 return;
             }
 
-            // Delete queue item
             if (action === 'deleteQueueItem') {
-                const { objectId } = data;
-                await deleteQueueItem(objectId);
+                await deleteQueueItem(data.objectId);
                 res.status(200).json({ success: true });
                 return;
             }
 
-            // Clear queue
             if (action === 'clearQueue') {
                 const result = await clearQueue();
                 res.status(200).json({ success: true, ...result });
                 return;
             }
 
-            // Get users (admin only)
             if (action === 'getUsers') {
                 const user = await getUser(data.username);
                 if (!user || user.role !== 'admin') {
@@ -334,7 +371,6 @@ module.exports = async (req, res) => {
                 return;
             }
 
-            // Change role (admin only)
             if (action === 'changeRole') {
                 const user = await getUser(data.username);
                 if (!user || user.role !== 'admin') {
@@ -346,7 +382,6 @@ module.exports = async (req, res) => {
                 return;
             }
 
-            // Delete user (admin only)
             if (action === 'deleteUser') {
                 const user = await getUser(data.username);
                 if (!user || user.role !== 'admin') {
@@ -358,27 +393,21 @@ module.exports = async (req, res) => {
                 return;
             }
 
-            // Get stats
             if (action === 'getStats') {
                 const stats = await getStats();
                 res.status(200).json(stats);
                 return;
             }
 
-            // Get index pages
             if (action === 'getIndexPages') {
                 const pages = await getIndexPages();
                 res.status(200).json({ pages });
                 return;
             }
 
-            // Default: single URL upload (backward compatible)
-            if (!action || action === 'search' || data.url) {
-                const url = data.url;
-                if (!url || !url.startsWith('http')) {
-                    res.status(400).json({ error: 'Valid URL required' });
-                    return;
-                }
+            // Default: single URL upload
+            const url = data.url;
+            if (url && url.startsWith('http')) {
                 const result = await parseRequest('POST', '/classes/CrawlQueue', { url, status: 'pending' });
                 res.status(200).json({
                     success: true,
