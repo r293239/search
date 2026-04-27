@@ -73,22 +73,18 @@
         .user-badge { padding: 6px 14px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; }
         .badge-admin { background: #fef3c7; color: #92400e; }
         .badge-editor { background: #dbeafe; color: #1e40af; }
-        .badge-viewer { background: #e0e7ff; color: #3730a3; }
         .btn-logout { padding: 6px 16px; background: transparent; color: var(--text-secondary); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; font-size: 0.85rem; }
         .btn-logout:hover { border-color: var(--red); color: var(--red); }
 
         .container { max-width: 1200px; margin: 0 auto; padding: 30px 20px; }
         
         .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 30px; }
-        .stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; box-shadow: var(--shadow); position: relative; overflow: hidden; }
+        .stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; box-shadow: var(--shadow); }
         .stat-card .stat-icon { font-size: 2rem; margin-bottom: 8px; }
         .stat-card .stat-label { color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 4px; }
         .stat-card .stat-value { font-size: 2.5rem; font-weight: 700; }
         .stat-card .stat-sub { color: var(--text-secondary); font-size: 0.75rem; margin-top: 4px; }
-        .stat-card.pulse { animation: statPulse 0.5s ease; }
-        @keyframes statPulse { 0% { transform: scale(1); } 50% { transform: scale(1.03); } 100% { transform: scale(1); } }
 
-        /* Crawl button */
         .crawl-section {
             background: var(--bg-card);
             border: 2px solid var(--accent);
@@ -101,8 +97,8 @@
             flex-wrap: wrap;
             gap: 16px;
         }
-        .crawl-section .info h3 { margin-bottom: 4px; }
-        .crawl-section .info p { color: var(--text-secondary); font-size: 0.85rem; }
+        .crawl-info h3 { margin-bottom: 4px; }
+        .crawl-info p { color: var(--text-secondary); font-size: 0.85rem; }
         .btn-crawl {
             padding: 14px 32px;
             font-size: 1.1rem;
@@ -152,8 +148,6 @@
 
         .status-badge { padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
         .status-pending { background: var(--yellow-bg); color: var(--yellow); }
-        .status-crawled { background: var(--green-bg); color: var(--green); }
-        .status-failed { background: var(--red-bg); color: var(--red); }
 
         .msg { padding: 10px 14px; border-radius: 8px; margin-bottom: 12px; font-size: 0.9rem; display: none; }
         .msg-success { background: var(--green-bg); color: var(--green); display: block; }
@@ -180,6 +174,7 @@
         <div class="user-info">
             <span id="userBadge" class="user-badge"></span>
             <span id="userName" style="font-weight:500"></span>
+            <a href="/" style="color: var(--text-secondary); text-decoration: none; font-size: 0.85rem;">← Back to Search</a>
             <button class="btn-logout" onclick="logout()">Logout</button>
         </div>
     </div>
@@ -187,18 +182,18 @@
     <div class="container">
         <!-- Crawl Button -->
         <div class="crawl-section">
-            <div class="info">
+            <div class="crawl-info">
                 <h3>🕷️ Manual Crawl Trigger</h3>
-                <p>Trigger the crawler manually to index queued URLs immediately.</p>
+                <p>Go to your GitHub repo → Actions → "Auto Crawl & Index" → Run workflow to crawl immediately.</p>
             </div>
-            <button class="btn-crawl" id="btnCrawl" onclick="triggerCrawl()">
-                🚀 Crawl Now
+            <button class="btn-crawl" onclick="window.open('https://github.com/' + getRepoName() + '/actions/workflows/crawler.yml', '_blank')">
+                🚀 Open GitHub Actions
             </button>
         </div>
 
         <!-- Stats -->
         <div class="stats-grid">
-            <div class="stat-card" id="cardIndexed">
+            <div class="stat-card">
                 <div class="stat-icon">📚</div>
                 <div class="stat-label">Pages Indexed</div>
                 <div class="stat-value" id="statIndexed">-</div>
@@ -228,7 +223,7 @@
         <div class="tabs">
             <button class="tab active" onclick="switchTab('upload')">📤 Mass Upload</button>
             <button class="tab" onclick="switchTab('queue')">📋 Crawl Queue</button>
-            <button class="tab" onclick="switchTab('users')">👥 Users</button>
+            <button class="tab" id="tabUsers" onclick="switchTab('users')">👥 Users</button>
             <button class="tab" onclick="switchTab('index')">🔍 Index Browser</button>
         </div>
 
@@ -239,7 +234,7 @@
                 <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 14px;">
                     Paste up to 100 URLs, one per line. Duplicates are automatically skipped.
                 </p>
-                <textarea id="bulkUrls" placeholder="https://example.com/article1&#10;https://example.com/article2&#10;https://example.com/article3&##10;..."></textarea>
+                <textarea id="bulkUrls" placeholder="https://example.com/article1&#10;https://example.com/article2&#10;https://example.com/article3&#10;..."></textarea>
                 <div class="button-row">
                     <button class="btn btn-primary" onclick="bulkUpload()">🚀 Submit All</button>
                     <button class="btn" onclick="document.getElementById('bulkUrls').value='';document.getElementById('urlCount').textContent='0 URLs';" style="background:var(--bg);border:1px solid var(--border);">Clear</button>
@@ -317,21 +312,45 @@
 
         function checkAuth() {
             const stored = localStorage.getItem('search_user');
-            if (!stored) { window.location.href = '/login.html'; return; }
+            if (!stored) { 
+                window.location.href = '/'; 
+                return; 
+            }
             currentUser = JSON.parse(stored);
+            
+            // Block viewers completely
+            if (currentUser.role === 'viewer') {
+                alert('Access denied. You need Editor or Admin permissions to access the Search Console.');
+                window.location.href = '/';
+                return;
+            }
+            
             document.getElementById('userName').textContent = currentUser.username;
             const badge = document.getElementById('userBadge');
             badge.textContent = currentUser.role.toUpperCase();
             badge.className = 'user-badge';
             if (currentUser.role === 'admin') badge.classList.add('badge-admin');
-            else if (currentUser.role === 'editor') badge.classList.add('badge-editor');
-            else badge.classList.add('badge-viewer');
+            else badge.classList.add('badge-editor');
+            
+            // Only admin sees users tab
             if (currentUser.role !== 'admin') {
-                document.querySelectorAll('.tab')[2].style.display = 'none';
+                document.getElementById('tabUsers').style.display = 'none';
             }
         }
 
-        function logout() { localStorage.removeItem('search_user'); window.location.href = '/login.html'; }
+        function logout() { 
+            localStorage.removeItem('search_user'); 
+            window.location.href = '/'; 
+        }
+
+        function getRepoName() {
+            // Extract from Vercel URL or use default
+            const host = window.location.hostname;
+            if (host.includes('vercel.app')) {
+                return host.split('.')[0] + '/search-engine';
+            }
+            return 'YOUR_USERNAME/search-engine';
+        }
 
         async function api(body) {
             const res = await fetch('/api/index', {
@@ -346,38 +365,14 @@
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
             const tabs = ['upload','queue','users','index'];
-            document.querySelector(`.tab:nth-child(${tabs.indexOf(name)+1})`).classList.add('active');
+            const idx = tabs.indexOf(name);
+            if (idx >= 0) {
+                document.querySelectorAll('.tab')[idx].classList.add('active');
+            }
             document.getElementById(`tab-${name}`).classList.add('active');
             if (name === 'queue') loadQueue();
             if (name === 'users' && currentUser.role === 'admin') loadUsers();
             if (name === 'index') loadIndexPages();
-        }
-
-        // Crawl trigger
-        async function triggerCrawl() {
-            const btn = document.getElementById('btnCrawl');
-            btn.disabled = true;
-            btn.innerHTML = '<span class="spinner"></span> Crawling...';
-            
-            try {
-                // Trigger via GitHub Actions API (manual dispatch)
-                // Since we can't directly trigger Actions from browser easily,
-                // we use a workaround: create a special queue item that the crawler checks
-                const data = await api({ action: 'triggerCrawl', username: currentUser.username });
-                
-                if (data.success) {
-                    showMsg('uploadMsg', '✅ Crawl triggered! The crawler will process the queue on its next run (within the hour). To run immediately, go to GitHub Actions → Run workflow.', 'info');
-                    // Refresh stats after a delay
-                    setTimeout(() => { loadStats(); loadQueue(); }, 5000);
-                } else {
-                    showMsg('uploadMsg', '❌ Failed to trigger crawl', 'error');
-                }
-            } catch(e) {
-                showMsg('uploadMsg', '❌ Connection failed. Trigger manually from GitHub Actions tab.', 'error');
-            }
-            
-            btn.disabled = false;
-            btn.innerHTML = '🚀 Crawl Now';
         }
 
         // URL counter
@@ -398,12 +393,12 @@
 
             const data = await api({ action: 'bulkUpload', urls, username: currentUser.username, role: currentUser.role });
             if (data.success) {
-                showMsg('uploadMsg', `✅ Submitted ${data.count} URLs! ${data.skipped} duplicates skipped.`, 'success');
+                showMsg('uploadMsg', `✅ Submitted ${data.count} URLs! ${data.skipped} duplicates skipped. Run the crawler to index them.`, 'success');
                 document.getElementById('bulkUrls').value = '';
                 document.getElementById('urlCount').textContent = '0 URLs';
                 loadStats();
             } else {
-                showMsg('uploadMsg', `❌ ${data.error || 'Failed'}`, 'error');
+                showMsg('uploadMsg', `❌ ${data.error || 'Permission denied. Editors and Admins only.'}`, 'error');
             }
         }
 
@@ -416,7 +411,7 @@
                 document.getElementById('singleUrl').value = '';
                 loadStats();
             } else {
-                showMsg('uploadMsg', `❌ ${data.error}`, 'error');
+                showMsg('uploadMsg', `❌ ${data.error || 'Permission denied'}`, 'error');
             }
         }
 
@@ -439,7 +434,13 @@
         }
 
         async function deleteQueueItem(id) { await api({ action: 'deleteQueueItem', objectId: id }); loadQueue(); loadStats(); }
-        async function clearQueue() { if (!confirm('Delete ALL pending URLs?')) return; await api({ action: 'clearQueue' }); loadQueue(); loadStats(); }
+        
+        async function clearQueue() { 
+            if (!confirm('Delete ALL pending URLs from the queue?')) return; 
+            await api({ action: 'clearQueue' }); 
+            loadQueue(); 
+            loadStats(); 
+        }
 
         async function loadUsers() {
             if (currentUser.role !== 'admin') return;
@@ -456,15 +457,25 @@
                             <option value="admin" ${u.role==='admin'?'selected':''}>Admin</option>
                         </select>
                     </td>
-                    <td style="font-size:0.8rem;color:var(--text-secondary)">${u.role==='admin'?'Full access':u.role==='editor'?'Upload URLs, view data':'View only'}</td>
+                    <td style="font-size:0.8rem;color:var(--text-secondary)">${u.role==='admin'?'Full access':u.role==='editor'?'Upload & view':'View only'}</td>
                     <td style="font-size:0.8rem">${u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '-'}</td>
                     <td>${u.username !== currentUser.username ? `<button class="btn btn-danger btn-sm" onclick="deleteUser('${u.objectId}')">Remove</button>` : ''}</td>
                 </tr>
             `).join('');
         }
 
-        async function changeRole(objectId, newRole) { await api({ action: 'changeRole', targetId: objectId, newRole, username: currentUser.username }); loadUsers(); }
-        async function deleteUser(objectId) { if (!confirm('Remove this user?')) return; await api({ action: 'deleteUser', targetId: objectId, username: currentUser.username }); loadUsers(); }
+        async function changeRole(objectId, newRole) { 
+            await api({ action: 'changeRole', targetId: objectId, newRole, username: currentUser.username }); 
+            loadUsers(); 
+            loadStats();
+        }
+        
+        async function deleteUser(objectId) { 
+            if (!confirm('Remove this user? They can always sign back in as a viewer.')) return; 
+            await api({ action: 'deleteUser', targetId: objectId, username: currentUser.username }); 
+            loadUsers(); 
+            loadStats();
+        }
 
         async function loadIndexPages() {
             const data = await api({ action: 'getIndexPages' });
@@ -494,29 +505,17 @@
         }
 
         async function loadStats() {
-            const data = await api({ action: 'getStats' });
-            
-            // Get real numbers from the API response
-            const indexed = data.indexed || 0;
-            const queue = data.queue || 0;
-            const terms = data.terms || 0;
-            const users = data.users || 0;
-            
-            // Animate the stat cards
-            function animateValue(id, value) {
-                const el = document.getElementById(id);
-                const card = el.closest('.stat-card');
-                el.textContent = value.toLocaleString();
-                if (card) {
-                    card.classList.add('pulse');
-                    setTimeout(() => card.classList.remove('pulse'), 500);
-                }
+            try {
+                const data = await api({ action: 'getStats' });
+                
+                // Use real numbers from API, default to 0 if missing
+                document.getElementById('statIndexed').textContent = (data.indexed || 0).toLocaleString();
+                document.getElementById('statQueue').textContent = (data.queue || 0).toLocaleString();
+                document.getElementById('statTerms').textContent = (data.terms || 0).toLocaleString();
+                document.getElementById('statUsers').textContent = (data.users || 0).toLocaleString();
+            } catch(e) {
+                console.error('Stats load failed:', e);
             }
-            
-            animateValue('statIndexed', indexed);
-            animateValue('statQueue', queue);
-            animateValue('statTerms', terms);
-            animateValue('statUsers', users);
         }
 
         function showMsg(id, text, type) {
@@ -536,6 +535,7 @@
         // Auto-refresh stats every 30 seconds
         setInterval(loadStats, 30000);
 
+        // Init
         checkAuth();
         loadStats();
     </script>
