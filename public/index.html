@@ -5,149 +5,552 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Search Engine</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #0f172a;
-            color: #e2e8f0;
-            min-height: 100vh;
-            padding: 20px;
+        :root {
+            /* Light mode */
+            --bg: #ffffff;
+            --bg-secondary: #f8fafc;
+            --bg-card: #ffffff;
+            --text: #1e293b;
+            --text-secondary: #64748b;
+            --border: #e2e8f0;
+            --input-bg: #f1f5f9;
+            --input-focus: #e0e7ff;
+            --accent: #6366f1;
+            --accent-hover: #4f46e5;
+            --accent-light: #eef2ff;
+            --green: #059669;
+            --green-bg: #ecfdf5;
+            --red: #dc2626;
+            --red-bg: #fef2f2;
+            --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+            --gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
+            --radius: 16px;
         }
-        .container { max-width: 800px; margin: 0 auto; }
-        h1 {
-            font-size: 3rem;
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #0f172a;
+                --bg-secondary: #1e293b;
+                --bg-card: #1e293b;
+                --text: #f1f5f9;
+                --text-secondary: #94a3b8;
+                --border: #334155;
+                --input-bg: #1e293b;
+                --input-focus: #312e81;
+                --accent: #818cf8;
+                --accent-hover: #6366f1;
+                --accent-light: #1e1b4b;
+                --green: #34d399;
+                --green-bg: #064e3b;
+                --red: #f87171;
+                --red-bg: #7f1d1d;
+                --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.4);
+                --shadow-lg: 0 20px 25px -5px rgb(0 0 0 / 0.5), 0 8px 10px -6px rgb(0 0 0 / 0.5);
+                --gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
+            }
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            transition: background 0.3s ease, color 0.3s ease;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* Subtle background pattern */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                radial-gradient(circle at 20% 80%, var(--accent-light) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, var(--accent-light) 0%, transparent 50%);
+            opacity: 0.4;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Header */
+        .header {
             text-align: center;
-            margin: 40px 0 10px;
-            background: linear-gradient(135deg, #667eea, #764ba2);
+            padding: 60px 0 20px;
+        }
+
+        .logo {
+            font-size: 4rem;
+            margin-bottom: 10px;
+            display: inline-block;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        h1 {
+            font-size: 3.5rem;
+            font-weight: 800;
+            background: var(--gradient);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
+            letter-spacing: -0.02em;
         }
+
         .subtitle {
-            text-align: center;
-            color: #94a3b8;
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            margin-top: 8px;
+        }
+
+        /* Search Section */
+        .search-section {
             margin-bottom: 40px;
         }
+
         .search-box {
             display: flex;
-            gap: 10px;
-            margin-bottom: 30px;
+            gap: 12px;
+            background: var(--bg-card);
+            padding: 8px;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-lg);
+            border: 1px solid var(--border);
         }
-        input {
+
+        .search-box input {
             flex: 1;
-            padding: 16px 24px;
-            font-size: 1.1rem;
-            background: #1e293b;
-            border: 2px solid #334155;
-            color: #e2e8f0;
+            padding: 18px 24px;
+            font-size: 1.15rem;
+            background: var(--input-bg);
+            border: 2px solid transparent;
+            color: var(--text);
             border-radius: 12px;
             outline: none;
-            transition: border-color 0.3s;
+            transition: all 0.3s ease;
+            min-width: 0;
         }
-        input:focus { border-color: #667eea; }
-        button {
-            padding: 16px 32px;
+
+        .search-box input::placeholder {
+            color: var(--text-secondary);
+        }
+
+        .search-box input:focus {
+            border-color: var(--accent);
+            background: var(--input-focus);
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+        }
+
+        .search-box button {
+            padding: 18px 36px;
             font-size: 1.1rem;
-            background: linear-gradient(135deg, #667eea, #764ba2);
+            background: var(--gradient);
             color: white;
             border: none;
             border-radius: 12px;
             cursor: pointer;
             font-weight: 600;
-            transition: opacity 0.3s, transform 0.1s;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+            letter-spacing: 0.01em;
+        }
+
+        .search-box button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(99, 102, 241, 0.4);
+        }
+
+        .search-box button:active {
+            transform: translateY(0);
+        }
+
+        /* Stats bar */
+        .stats-bar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin: 16px 0;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            min-height: 24px;
+        }
+
+        .stats-bar .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--accent);
+            display: inline-block;
+        }
+
+        /* Results */
+        .results-container {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .result {
+            background: var(--bg-card);
+            padding: 24px;
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .result::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: var(--gradient);
+            border-radius: 0 4px 4px 0;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .result:hover {
+            transform: translateX(4px);
+            border-color: var(--accent);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .result:hover::before {
+            opacity: 1;
+        }
+
+        .result-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--accent);
+            text-decoration: none;
+            display: block;
+            margin-bottom: 6px;
+            line-height: 1.3;
+        }
+
+        .result-title:hover {
+            text-decoration: underline;
+            color: var(--accent-hover);
+        }
+
+        .result-url {
+            color: var(--green);
+            font-size: 0.8rem;
+            margin-bottom: 10px;
+            word-break: break-all;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .result-url .icon {
+            font-size: 0.7rem;
+        }
+
+        .result-snippet {
+            color: var(--text-secondary);
+            line-height: 1.6;
+            font-size: 0.95rem;
+        }
+
+        .result-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid var(--border);
+        }
+
+        .result-score {
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 80px 20px;
+        }
+
+        .empty-state .icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            opacity: 0.6;
+        }
+
+        .empty-state h2 {
+            color: var(--text);
+            font-size: 1.5rem;
+            margin-bottom: 8px;
+        }
+
+        .empty-state p {
+            color: var(--text-secondary);
+            font-size: 1rem;
+            max-width: 400px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+
+        /* Upload Section */
+        .upload-section {
+            margin-top: 50px;
+            padding: 32px;
+            background: var(--bg-card);
+            border-radius: var(--radius);
+            border: 1px dashed var(--border);
+            box-shadow: var(--shadow);
+            transition: all 0.3s ease;
+        }
+
+        .upload-section:hover {
+            border-color: var(--accent);
+        }
+
+        .upload-section h3 {
+            font-size: 1.1rem;
+            color: var(--text);
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .upload-section .hint {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            margin-bottom: 20px;
+        }
+
+        .upload-box {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .upload-box input {
+            flex: 1;
+            min-width: 200px;
+            padding: 14px 20px;
+            font-size: 1rem;
+            background: var(--input-bg);
+            border: 2px solid var(--border);
+            color: var(--text);
+            border-radius: 12px;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .upload-box input:focus {
+            border-color: var(--accent);
+        }
+
+        .upload-box button {
+            padding: 14px 28px;
+            font-size: 1rem;
+            background: var(--bg-secondary);
+            color: var(--text);
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
             white-space: nowrap;
         }
-        button:hover { opacity: 0.9; transform: translateY(-1px); }
-        button:active { transform: translateY(0); }
-        #stats {
-            text-align: center;
-            color: #94a3b8;
-            margin-bottom: 20px;
-            font-size: 0.9rem;
+
+        .upload-box button:hover {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
         }
-        .result {
-            background: #1e293b;
-            padding: 20px;
-            margin-bottom: 15px;
-            border-radius: 12px;
-            border: 1px solid #334155;
-            transition: border-color 0.3s;
-        }
-        .result:hover { border-color: #667eea; }
-        .result-title {
-            font-size: 1.2rem;
-            color: #667eea;
-            text-decoration: none;
-            font-weight: 600;
-            display: block;
-            margin-bottom: 5px;
-        }
-        .result-title:hover { text-decoration: underline; }
-        .result-url {
-            color: #4ade80;
-            font-size: 0.85rem;
-            margin-bottom: 8px;
-            word-break: break-all;
-        }
-        .result-snippet { color: #cbd5e1; line-height: 1.5; }
-        .result-score { color: #94a3b8; font-size: 0.8rem; margin-top: 5px; }
-        .upload-section {
-            margin-top: 40px;
-            padding: 20px;
-            background: #1e293b;
-            border-radius: 12px;
-            border: 1px dashed #334155;
-        }
-        .upload-section h3 { margin-bottom: 15px; color: #94a3b8; }
-        .upload-row { display: flex; gap: 10px; flex-wrap: wrap; }
+
         #status {
-            margin-top: 10px;
-            padding: 10px;
-            border-radius: 8px;
+            margin-top: 14px;
+            padding: 12px 16px;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            display: none;
         }
-        .success {
-            background: #064e3b;
-            color: #6ee7b7;
-            border: 1px solid #065f46;
+
+        #status.active {
+            display: block;
+            animation: slideIn 0.3s ease;
         }
-        .error {
-            background: #7f1d1d;
-            color: #fecaca;
-            border: 1px solid #991b1b;
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
-        .empty {
+
+        .status-success {
+            background: var(--green-bg);
+            color: var(--green);
+            border: 1px solid var(--green);
+        }
+
+        .status-error {
+            background: var(--red-bg);
+            color: var(--red);
+            border: 1px solid var(--red);
+        }
+
+        /* Footer */
+        .footer {
             text-align: center;
-            padding: 60px;
-            color: #64748b;
-            font-size: 1.1rem;
+            padding: 40px 0;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
         }
-        @media (max-width: 600px) {
-            .search-box, .upload-row { flex-direction: column; }
-            h1 { font-size: 2rem; }
+
+        .footer .heart {
+            color: #ef4444;
+            animation: pulse 1.5s ease-in-out infinite;
+            display: inline-block;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+        }
+
+        /* Mobile */
+        @media (max-width: 640px) {
+            .container {
+                padding: 12px;
+            }
+            .header {
+                padding: 40px 0 10px;
+            }
+            .logo {
+                font-size: 3rem;
+            }
+            h1 {
+                font-size: 2.2rem;
+            }
+            .search-box {
+                flex-direction: column;
+                gap: 8px;
+            }
+            .search-box input,
+            .search-box button {
+                width: 100%;
+                text-align: center;
+            }
+            .result {
+                padding: 18px;
+            }
+            .upload-box {
+                flex-direction: column;
+            }
+            .upload-box button {
+                width: 100%;
+                text-align: center;
+            }
+        }
+
+        /* Loading spinner */
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            display: inline-block;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Search</h1>
-        <p class="subtitle">Your personal search engine</p>
-        
-        <div class="search-box">
-            <input type="text" id="q" placeholder="Search the web..." autofocus 
-                   onkeypress="if(event.key==='Enter')search()">
-            <button onclick="search()">Search</button>
+        <!-- Header -->
+        <div class="header">
+            <div class="logo">🔍</div>
+            <h1>Search</h1>
+            <p class="subtitle">Discover the web, one page at a time</p>
         </div>
-        
-        <div id="stats"></div>
-        <div id="results"></div>
-        
+
+        <!-- Search -->
+        <div class="search-section">
+            <div class="search-box">
+                <input 
+                    type="text" 
+                    id="q" 
+                    placeholder="What are you looking for?" 
+                    autofocus 
+                    autocomplete="off"
+                    onkeypress="if(event.key==='Enter')search()"
+                >
+                <button onclick="search()">
+                    <span id="searchText">Search</span>
+                    <span id="searchSpinner" class="spinner" style="display:none"></span>
+                </button>
+            </div>
+            <div class="stats-bar" id="stats"></div>
+        </div>
+
+        <!-- Results -->
+        <div class="results-container" id="results"></div>
+
+        <!-- Upload -->
         <div class="upload-section">
-            <h3>📤 Add URL to Index</h3>
-            <div class="upload-row">
-                <input type="url" id="url" placeholder="https://example.com">
+            <h3>📤 Submit a URL</h3>
+            <p class="hint">Found something interesting? Add it to the crawl queue and it'll be indexed automatically.</p>
+            <div class="upload-box">
+                <input type="url" id="url" placeholder="https://example.com/article">
                 <button onclick="upload()">Add to Queue</button>
             </div>
             <div id="status"></div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            Built with <span class="heart">❤️</span> &middot; Auto-discovers new pages &middot; Updates automatically
         </div>
     </div>
 
@@ -155,42 +558,72 @@
         async function search() {
             const q = document.getElementById('q').value.trim();
             if (!q) return;
-            
+
+            const searchBtn = document.getElementById('searchText');
+            const spinner = document.getElementById('searchSpinner');
+            searchBtn.style.display = 'none';
+            spinner.style.display = 'inline-block';
+
             try {
                 const res = await fetch(`/api/index?q=${encodeURIComponent(q)}`);
                 const data = await res.json();
-                
-                document.getElementById('stats').innerHTML = 
-                    data.results.length ? `Found ${data.results.length} results for "${data.query}"` : '';
-                
-                const div = document.getElementById('results');
-                if (!data.results.length) {
-                    div.innerHTML = '<div class="empty">No results found.<br><br>Add URLs above and run the crawler to build the index!</div>';
-                    return;
+
+                const stats = document.getElementById('stats');
+                const resultsDiv = document.getElementById('results');
+
+                if (data.results && data.results.length > 0) {
+                    stats.innerHTML = `<span class="dot"></span> Found <strong>${data.results.length}</strong> result${data.results.length > 1 ? 's' : ''} for "<strong>${escapeHtml(data.query)}</strong>"`;
+                    
+                    resultsDiv.innerHTML = data.results.map((r, i) => `
+                        <div class="result" onclick="window.open('${escapeHtml(r.url)}', '_blank')">
+                            <a href="${escapeHtml(r.url)}" class="result-title" target="_blank" rel="noopener" onclick="event.stopPropagation()">
+                                ${escapeHtml(r.title || 'Untitled')}
+                            </a>
+                            <div class="result-url">
+                                <span class="icon">🔗</span> ${escapeHtml(r.url)}
+                            </div>
+                            <div class="result-snippet">${escapeHtml(r.snippet || '')}</div>
+                            <div class="result-footer">
+                                <span class="result-score">⭐ Relevance: ${r.score}</span>
+                                <span style="color: var(--text-secondary); font-size: 0.75rem">${i + 1}</span>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    stats.innerHTML = '';
+                    resultsDiv.innerHTML = `
+                        <div class="empty-state">
+                            <div class="icon">📭</div>
+                            <h2>No results found</h2>
+                            <p>Try a different search term or add new URLs below to grow the index. The crawler will pick them up automatically!</p>
+                        </div>
+                    `;
                 }
-                
-                div.innerHTML = data.results.map(r => `
-                    <div class="result">
-                        <a href="${r.url}" class="result-title" target="_blank" rel="noopener">${escapeHtml(r.title)}</a>
-                        <div class="result-url">${escapeHtml(r.url)}</div>
-                        <div class="result-snippet">${escapeHtml(r.snippet)}</div>
-                        <div class="result-score">Relevance: ${r.score}</div>
-                    </div>
-                `).join('');
             } catch (e) {
-                document.getElementById('results').innerHTML = 
-                    '<div class="empty">Search failed. Is the index built?</div>';
+                document.getElementById('results').innerHTML = `
+                    <div class="empty-state">
+                        <div class="icon">⚡</div>
+                        <h2>Something went wrong</h2>
+                        <p>Couldn't connect to the search server. Make sure the index has been built by running the crawler.</p>
+                    </div>
+                `;
+            } finally {
+                searchBtn.style.display = 'inline';
+                spinner.style.display = 'none';
             }
         }
-        
+
         async function upload() {
             const url = document.getElementById('url').value.trim();
             if (!url) return;
-            
+
             const status = document.getElementById('status');
-            status.className = '';
-            status.textContent = 'Adding...';
-            
+            status.className = 'active';
+            status.style.background = 'var(--bg-secondary)';
+            status.style.color = 'var(--text-secondary)';
+            status.style.border = '1px solid var(--border)';
+            status.textContent = '⏳ Adding to queue...';
+
             try {
                 const res = await fetch('/api/index', {
                     method: 'POST',
@@ -198,22 +631,39 @@
                     body: JSON.stringify({ url })
                 });
                 const data = await res.json();
-                status.className = data.success ? 'success' : 'error';
-                status.textContent = data.success 
-                    ? `✅ ${data.message} - ${data.crawlNext}` 
-                    : `❌ ${data.error || 'Failed'}`;
-                if (data.success) document.getElementById('url').value = '';
+
+                if (data.success) {
+                    status.className = 'active status-success';
+                    status.innerHTML = `✅ <strong>Added!</strong> ${escapeHtml(url)} — The crawler will index it soon.`;
+                    document.getElementById('url').value = '';
+                } else {
+                    status.className = 'active status-error';
+                    status.textContent = `❌ ${data.error || 'Failed to add URL'}`;
+                }
             } catch (e) {
-                status.className = 'error';
-                status.textContent = '❌ Connection failed';
+                status.className = 'active status-error';
+                status.textContent = '❌ Connection failed. Is the server running?';
             }
+
+            setTimeout(() => {
+                status.className = '';
+                status.style.display = 'none';
+            }, 5000);
         }
-        
+
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text || '';
             return div.innerHTML;
         }
+
+        // Keyboard shortcut: "/" to focus search
+        document.addEventListener('keydown', (e) => {
+            if (e.key === '/' && document.activeElement !== document.getElementById('q') && document.activeElement !== document.getElementById('url')) {
+                e.preventDefault();
+                document.getElementById('q').focus();
+            }
+        });
     </script>
 </body>
 </html>
