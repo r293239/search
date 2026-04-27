@@ -1,25 +1,21 @@
-name: Run Crawler
+name: Auto Crawl & Index
 
 on:
   schedule:
-    - cron: '0 */6 * * *'   # Every 6 hours
-  workflow_dispatch:          # Manual trigger from GitHub
+    - cron: '0 * * * *'    # Every hour
+  workflow_dispatch:
 
 jobs:
-  crawl:
+  discover:
     runs-on: ubuntu-latest
-    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      
       - name: Install dependencies
         run: pip install -r crawler/requirements.txt
-      
-      - name: Run crawler
+      - name: Discover new pages
+        run: python crawler/discover.py
+      - name: Crawl and index
         run: python crawler/crawler.py
