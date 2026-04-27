@@ -7,7 +7,6 @@ import time
 import json
 from collections import defaultdict
 
-# ===== YOUR BACK4APP KEYS =====
 PARSE_APP_ID = "qXJqQ3HWKYsGVB1oQKnYZo7zdNLHgjZMiwonhozr"
 PARSE_REST_KEY = "mdTfymJLDHJY46HUv0tgKtWkqMm4YHQEbdsPX8tJ"
 PARSE_URL = "https://parseapi.back4app.com"
@@ -17,7 +16,6 @@ HEADERS = {
     "X-Parse-REST-API-Key": PARSE_REST_KEY,
     "Content-Type": "application/json"
 }
-# ==============================
 
 class Crawler:
     def __init__(self):
@@ -25,7 +23,6 @@ class Crawler:
         self.session.headers.update({"User-Agent": "Mozilla/5.0 (compatible; SearchBot/1.0)"})
     
     def fetch(self, url):
-        """Download and parse a webpage"""
         resp = self.session.get(url, timeout=10)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, 'html.parser')
@@ -39,7 +36,6 @@ class Crawler:
         return {"url": url, "title": title, "text": text, "links": links[:20]}
     
     def crawl(self, start_urls, max_pages=50):
-        """BFS crawl from seed URLs"""
         visited = set()
         queue = list(start_urls)
         pages = []
@@ -75,14 +71,11 @@ class Indexer:
         }
     
     def tokenize(self, text):
-        """Split text into words, filter stopwords"""
         words = re.findall(r'\b[a-zA-Z]{2,}\b', text.lower())
         return [w for w in words if w not in self.stopwords]
     
     def build_index(self, pages):
-        """Build inverted index with TF-IDF"""
         N = len(pages)
-        
         doc_tokens = {}
         doc_urls = []
         for i, page in enumerate(pages):
@@ -90,13 +83,11 @@ class Indexer:
             doc_tokens[i] = tokens
             doc_urls.append(page['url'])
         
-        # Document frequency
         df = defaultdict(int)
         for tokens in doc_tokens.values():
             for word in set(tokens):
                 df[word] += 1
         
-        # Build inverted index
         index = {}
         for i, tokens in doc_tokens.items():
             tf = defaultdict(int)
@@ -121,7 +112,6 @@ class Indexer:
         }
     
     def save_to_back4app(self, index_data):
-        """Save index to Back4App"""
         payload = {
             "data": json.dumps(index_data),
             "docCount": index_data["doc_count"],
@@ -129,71 +119,48 @@ class Indexer:
         }
         resp = requests.post(f"{PARSE_URL}/classes/Index", json=payload, headers=HEADERS)
         if resp.status_code in [200, 201]:
-            print(f"✅ Index saved!")
+            print(f"✅ Index saved! {index_data['doc_count']} docs, {len(index_data['index'])} terms")
             return True
         else:
-            print(f"❌ Failed: {resp.json()}")
+            print(f"❌ Failed: {resp.text}")
             return False
 
 
 def get_queue():
-    """Get pending URLs from CrawlQueue"""
     where = json.dumps({"status": "pending"})
-    resp = requests.get(
-        f"{PARSE_URL}/classes/CrawlQueue",
-        params={"where": where, "limit": 10},
-        headers=HEADERS
-    )
+    resp = requests.get(f"{PARSE_URL}/classes/CrawlQueue", params={"where": where, "limit": 10}, headers=HEADERS)
     if resp.status_code == 200:
-        results = resp.json().get('results', [])
-        return [item['url'] for item in results]
+        return [item for item in resp.json().get('results', [])]
     return []
 
 
-def clear_queue():
-    """Delete crawled queue items"""
-    where = json.dumps({"status": "pending"})
-    resp = requests.get(
-        f"{PARSE_URL}/classes/CrawlQueue",
-        params={"where": where},
-        headers=HEADERS
-    )
-    if resp.status_code == 200:
-        for item in resp.json().get('results', []):
-            requests.delete(
-                f"{PARSE_URL}/classes/CrawlQueue/{item['objectId']}",
-                headers=HEADERS
-            )
+def delete_queue_item(objectId):
+    requests.delete(f"{PARSE_URL}/classes/CrawlQueue/{objectId}", headers=HEADERS)
 
 
 def main():
     crawler = Crawler()
     indexer = Indexer()
     
-    # Get URLs from queue or use defaults
-    seeds = get_queue()
-    if not seeds:
-        seeds = [
-            "https://en.wikipedia.org/wiki/Search_engine",
-            "https://en.wikipedia.org/wiki/Web_crawler",
-            "https://developer.mozilla.org/en-US/",
-            "https://www.python.org/",
-            "https://github.com/"
-        ]
-        print("Using default seed URLs")
+    queue_items = get_queue()
     
-    print(f"🕷️ Crawling {len(seeds)} seeds, max 30 pages...")
+    if not queue_items:
+        print("No URLs in queue. Add some via the web interface!")
+        return
+    
+    seeds = [item['url'] for item in queue_items]
+    print(f"🕷️ Crawling {len(seeds)} URLs from queue, max 30 pages...")
     pages = crawler.crawl(seeds, max_pages=30)
     
     if pages:
         print(f"\n📊 Building index from {len(pages)} pages...")
         index = indexer.build_index(pages)
-        print(f"Unique terms: {len(index['index'])}")
         
         print("💾 Saving to Back4App...")
         if indexer.save_to_back4app(index):
-            clear_queue()
-            print("✅ All done! Search engine index updated.")
+            for item in queue_items:
+                delete_queue_item(item['objectId'])
+            print("✅ Done!")
     else:
         print("❌ No pages crawled.")
 
