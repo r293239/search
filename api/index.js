@@ -52,9 +52,9 @@ class SearchEngine {
         });
     }
 
-    async search(query, maxResults = 20) {
+    async search(query, maxResults = 50) {
         const index = await this.loadIndex();
-        if (!index || !index.index) return [];
+        if (!index || !index.index) return { results: [], totalIndexed: 0 };
 
         const words = query.toLowerCase().split(/\s+/).filter(w => w.length > 0);
         const scores = {};
@@ -71,7 +71,7 @@ class SearchEngine {
             .sort((a, b) => b[1] - a[1])
             .slice(0, maxResults);
 
-        return ranked.map(([docId, score]) => {
+        const results = ranked.map(([docId, score]) => {
             const id = parseInt(docId);
             return {
                 url: index.urls[id] || '',
@@ -80,6 +80,11 @@ class SearchEngine {
                 score: Math.round(score * 10000) / 10000
             };
         });
+
+        return {
+            results,
+            totalIndexed: index.doc_count || index.urls.length || 0
+        };
     }
 }
 
@@ -126,8 +131,20 @@ module.exports = async (req, res) => {
     if (req.method === 'GET') {
         const params = getQueryParams(req.url);
         const query = params.q || '';
-        const results = query ? await searchEngine.search(query) : [];
-        res.status(200).json({ results, query });
+        const limit = parseInt(params.limit) || 50;
+        
+        if (query) {
+            const data = await searchEngine.search(query, limit);
+            res.status(200).json(data);
+        } else {
+            // Return just the index size
+            const index = await searchEngine.loadIndex();
+            res.status(200).json({
+                results: [],
+                query: '',
+                totalIndexed: index ? (index.doc_count || index.urls.length || 0) : 0
+            });
+        }
     }
     else if (req.method === 'POST') {
         let body = '';
