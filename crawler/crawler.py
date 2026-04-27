@@ -23,75 +23,71 @@ class Crawler:
         self.session.headers.update({"User-Agent": "Mozilla/5.0 (compatible; SearchBot/1.0)"})
     
     def fetch(self, url):
-        resp = self.session.get(url, timeout=10)
-        resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, 'html.parser')
-        
-        title = None
-        if soup.title and soup.title.string:
-            title = soup.title.string.strip()
-        if not title:
-            og_title = soup.find('meta', property='og:title')
-            if og_title and og_title.get('content'):
-                title = og_title['content'].strip()
-        if not title:
-            title = url
-        
-        description = ''
-        meta_desc = soup.find('meta', attrs={'name': 'description'})
-        if meta_desc and meta_desc.get('content'):
-            description = meta_desc['content'].strip()
-        if not description:
-            og_desc = soup.find('meta', property='og:description')
-            if og_desc and og_desc.get('content'):
-                description = og_desc['content'].strip()
-        if not description:
-            for tag in soup(['script', 'style', 'nav', 'header', 'footer', 'noscript', 'iframe']):
-                tag.decompose()
-            paragraphs = soup.find_all('p')
-            for p in paragraphs:
-                text = p.get_text(separator=' ', strip=True)
-                if len(text) > 100 and not any(skip in text.lower()[:50] for skip in 
-                    ['cookie', 'accept', 'subscribe', 'sign up', 'log in', '©', 'all rights reserved', 'menu', 'navigation']):
-                    description = text
-                    break
-        if not description:
-            for tag in soup(['script', 'style', 'nav', 'header', 'footer']):
-                tag.decompose()
-            body_text = soup.get_text(separator=' ', strip=True)
-            description = body_text[:300]
-        description = ' '.join(description.split())[:500]
-        
-        full_text = soup.get_text(separator=' ', strip=True)[:10000]
-        
-        links = []
-        for a in soup.find_all('a', href=True):
-            full = urljoin(url, a['href'])
-            if full.startswith('http'):
-                links.append(full)
-        
-        return {"url": url, "title": title, "description": description, "text": full_text, "links": links[:20]}
+        try:
+            resp = self.session.get(url, timeout=10)
+            resp.raise_for_status()
+            soup = BeautifulSoup(resp.text, 'html.parser')
+            
+            title = None
+            if soup.title and soup.title.string:
+                title = soup.title.string.strip()
+            if not title:
+                og_title = soup.find('meta', property='og:title')
+                if og_title and og_title.get('content'):
+                    title = og_title['content'].strip()
+            if not title:
+                title = url
+            
+            description = ''
+            meta_desc = soup.find('meta', attrs={'name': 'description'})
+            if meta_desc and meta_desc.get('content'):
+                description = meta_desc['content'].strip()
+            if not description:
+                og_desc = soup.find('meta', property='og:description')
+                if og_desc and og_desc.get('content'):
+                    description = og_desc['content'].strip()
+            if not description:
+                for tag in soup(['script', 'style', 'nav', 'header', 'footer', 'noscript', 'iframe']):
+                    tag.decompose()
+                paragraphs = soup.find_all('p')
+                for p in paragraphs:
+                    text = p.get_text(separator=' ', strip=True)
+                    if len(text) > 100 and not any(skip in text.lower()[:50] for skip in 
+                        ['cookie', 'accept', 'subscribe', 'sign up', 'log in', '©', 'all rights reserved', 'menu', 'navigation']):
+                        description = text
+                        break
+            if not description:
+                for tag in soup(['script', 'style', 'nav', 'header', 'footer']):
+                    tag.decompose()
+                body_text = soup.get_text(separator=' ', strip=True)
+                description = body_text[:300]
+            description = ' '.join(description.split())[:500]
+            
+            full_text = soup.get_text(separator=' ', strip=True)[:10000]
+            
+            return {"url": url, "title": title, "description": description, "text": full_text, "success": True}
+        except Exception as e:
+            return {"url": url, "title": url, "description": "", "text": "", "success": False, "error": str(e)}
     
-    def crawl(self, start_urls, max_pages=200):
-        visited = set()
-        queue = list(start_urls)
+    def crawl(self, urls):
+        """Crawl all URLs provided, no artificial limit"""
         pages = []
-        while queue and len(pages) < max_pages:
-            url = queue.pop(0)
-            if url in visited:
-                continue
-            visited.add(url)
-            try:
-                page = self.fetch(url)
+        total = len(urls)
+        
+        for i, url in enumerate(urls):
+            page = self.fetch(url)
+            if page['success']:
                 pages.append(page)
-                # Add discovered links to the crawl queue (keeps going deeper)
-                new_links = [l for l in page['links'] if l not in visited and l not in queue]
-                queue.extend(new_links[:5])  # Add up to 5 new links per page
-                print(f"✓ [{len(pages)}/{max_pages}] {url}")
-                time.sleep(0.5)  # Faster crawling (was 1 second)
-            except Exception as e:
-                print(f"✗ {url}: {e}")
+                print(f"✓ [{len(pages)}/{total}] {url}")
+            else:
+                print(f"✗ [{i+1}/{total}] {url} - {page.get('error', 'failed')}")
+            
+            # Small delay to be polite to servers
+            if i < total - 1:
+                time.sleep(0.3)
+        
         return pages
+
 
 class Indexer:
     def __init__(self):
@@ -102,29 +98,37 @@ class Indexer:
         return [w for w in words if w not in self.stopwords]
     
     def build_index(self, pages):
+        if not pages:
+            return None
+            
         N = len(pages)
         doc_tokens = {}
         doc_urls = []
+        
         for i, page in enumerate(pages):
             tokens = self.tokenize(page['text'])
             doc_tokens[i] = tokens
             doc_urls.append(page['url'])
+        
         df = defaultdict(int)
         for tokens in doc_tokens.values():
             for word in set(tokens):
                 df[word] += 1
+        
         index = {}
         for i, tokens in doc_tokens.items():
             tf = defaultdict(int)
             for w in tokens:
                 tf[w] += 1
             max_tf = max(tf.values()) if tf else 1
+            
             for word, count in tf.items():
                 if word not in index:
                     index[word] = {}
                 tf_norm = count / max_tf
                 idf = math.log((N - df[word] + 0.5) / (df[word] + 0.5) + 1)
                 index[word][str(i)] = round(tf_norm * idf, 4)
+        
         return {
             "index": index,
             "urls": doc_urls,
@@ -135,83 +139,83 @@ class Indexer:
         }
     
     def save_to_back4app(self, index_data):
-        # Append to existing index instead of replacing
-        existing_pages = self.get_existing_pages()
-        
-        payload = {"data": json.dumps(index_data), "docCount": index_data["doc_count"], "timestamp": int(index_data["timestamp"])}
+        payload = {
+            "data": json.dumps(index_data),
+            "docCount": index_data["doc_count"],
+            "timestamp": int(index_data["timestamp"])
+        }
         resp = requests.post(f"{PARSE_URL}/classes/Index", json=payload, headers=HEADERS)
         if resp.status_code in [200, 201]:
             print(f"✅ Index saved! {index_data['doc_count']} docs, {len(index_data['index'])} terms")
-            if existing_pages > 0:
-                print(f"   (Previous index had {existing_pages} pages - old indexes kept as backup)")
             return True
         else:
             print(f"❌ Failed: {resp.text}")
             return False
-    
-    def get_existing_pages(self):
-        """Check how many pages are in the latest index"""
-        resp = requests.get(f"{PARSE_URL}/classes/Index", params={"order": "-createdAt", "limit": 1}, headers=HEADERS)
-        if resp.status_code == 200:
-            results = resp.json().get('results', [])
-            if results and results[0].get('data'):
-                try:
-                    idx = json.loads(results[0]['data'])
-                    return idx.get('doc_count', 0)
-                except:
-                    pass
-        return 0
+
 
 def get_all_queue():
-    """Get ALL pending URLs from queue (not just 10)"""
+    """Get ALL pending URLs from the queue"""
     where = json.dumps({"status": "pending"})
-    resp = requests.get(f"{PARSE_URL}/classes/CrawlQueue", params={"where": where, "limit": 200}, headers=HEADERS)
+    resp = requests.get(f"{PARSE_URL}/classes/CrawlQueue", params={"where": where, "limit": 500}, headers=HEADERS)
     if resp.status_code == 200:
-        return [item for item in resp.json().get('results', [])]
+        return resp.json().get('results', [])
     return []
 
+
 def delete_queue_items(objectIds):
-    """Batch delete queue items"""
-    for oid in objectIds:
-        requests.delete(f"{PARSE_URL}/classes/CrawlQueue/{oid}", headers=HEADERS)
+    """Delete processed queue items in batches"""
+    batch_size = 50
+    for i in range(0, len(objectIds), batch_size):
+        batch = objectIds[i:i+batch_size]
+        for oid in batch:
+            requests.delete(f"{PARSE_URL}/classes/CrawlQueue/{oid}", headers=HEADERS)
+        print(f"  🗑 Deleted {len(batch)} queue items")
+
 
 def main():
     crawler = Crawler()
     indexer = Indexer()
     
+    # Get everything from queue
     queue_items = get_all_queue()
     
     if not queue_items:
-        print("✅ No URLs in queue. Everything is indexed!")
+        print("✅ Queue is empty! Nothing to crawl.")
         return
     
-    # Take ALL queue URLs (up to 100) as seeds
-    seeds = [item['url'] for item in queue_items[:100]]
-    queue_ids = [item['objectId'] for item in queue_items[:100]]
+    total_in_queue = len(queue_items)
+    print(f"📋 {total_in_queue} URLs in queue")
+    print(f"🕷️ Starting crawl on all {total_in_queue} URLs...")
+    print(f"⚡ Speed: 0.3s delay between requests\n")
     
-    print(f"📋 {len(queue_items)} URLs in queue")
-    print(f"🕷️ Crawling {len(seeds)} seeds, up to 200 pages total...")
-    print(f"⚡ Speed: 0.5s delay between requests\n")
-    
-    pages = crawler.crawl(seeds, max_pages=200)
+    # Crawl ALL of them
+    urls = [item['url'] for item in queue_items]
+    pages = crawler.crawl(urls)
     
     if pages:
-        print(f"\n📊 Building index from {len(pages)} pages...")
+        print(f"\n📊 Successfully crawled {len(pages)}/{total_in_queue} pages")
+        print(f"📊 Building index...")
+        
         index = indexer.build_index(pages)
         
-        print("💾 Saving to Back4App...")
-        if indexer.save_to_back4app(index):
-            # Delete processed queue items
-            delete_queue_items(queue_ids)
+        if index:
+            print(f"💾 Saving to Back4App ({index['doc_count']} docs, {len(index['index'])} unique terms)...")
             
-            # Report on remaining queue
-            remaining = len(queue_items) - len(queue_ids)
-            if remaining > 0:
-                print(f"📋 {remaining} URLs still in queue for next run")
+            if indexer.save_to_back4app(index):
+                # Delete ALL queue items that were processed
+                queue_ids = [item['objectId'] for item in queue_items]
+                delete_queue_items(queue_ids)
+                print(f"\n✅ Done! Indexed {len(pages)} pages. Queue cleared.")
             else:
-                print("✅ Queue fully cleared!")
+                print("❌ Failed to save index")
+        else:
+            print("❌ Failed to build index")
     else:
-        print("❌ No pages crawled.")
+        print("❌ No pages were successfully crawled")
+
 
 if __name__ == "__main__":
+    start = time.time()
     main()
+    elapsed = time.time() - start
+    print(f"\n⏱ Total time: {elapsed:.1f} seconds")
