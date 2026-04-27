@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Search</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d0d0d;
+      --surface: #161616;
+      --surface2: #1f1f1f;
+      --border: rgba(255,255,255,0.08);
+      --border-hover: rgba(255,255,255,0.18);
+      --text: #f0f0f0;
+      --muted: #888;
+      --accent: #4f8ef7;
+      --accent-dim: rgba(79,142,247,0.12);
+      --accent-glow: rgba(79,142,247,0.25);
+      --radius: 12px;
+      --radius-sm: 8px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Georgia', serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── CONFIG BANNER ── */
+    #config-banner {
+      background: rgba(239,180,62,0.12);
+      border-bottom: 1px solid rgba(239,180,62,0.25);
+      padding: 10px 24px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      color: #f0c060;
+    }
+    #config-banner button {
+      margin-left: auto;
+      background: rgba(239,180,62,0.18);
+      border: 1px solid rgba(239,180,62,0.4);
+      color: #f0c060;
+      font-family: inherit;
+      font-size: 12px;
+      padding: 4px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    #config-banner button:hover { background: rgba(239,180,62,0.28); }
+
+    /* ── CONFIG MODAL ── */
+    #modal-overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    #modal-overlay.open { display: flex; }
+    #modal {
+      background: var(--surface);
+      border: 1px solid var(--border-hover);
+      border-radius: var(--radius);
+      padding: 28px;
+      width: min(480px, 92vw);
+    }
+    #modal h2 {
+      font-size: 17px;
+      font-weight: 600;
+      font-family: 'Courier New', monospace;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+    #modal p {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 20px;
+      line-height: 1.6;
+      font-family: sans-serif;
+    }
+    #modal p a { color: var(--accent); text-decoration: none; }
+    #modal p a:hover { text-decoration: underline; }
+    .field { margin-bottom: 16px; }
+    .field label {
+      display: block;
+      font-size: 12px;
+      font-family: 'Courier New', monospace;
+      color: var(--muted);
+      margin-bottom: 6px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .field input {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 10px 14px;
+      font-size: 14px;
+      font-family: 'Courier New', monospace;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .field input:focus { border-color: var(--accent); }
+    .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+    .modal-actions button {
+      flex: 1;
+      padding: 10px;
+      border-radius: var(--radius-sm);
+      font-size: 14px;
+      cursor: pointer;
+      font-family: sans-serif;
+      font-weight: 500;
+    }
+    #btn-save {
+      background: var(--accent);
+      border: none;
+      color: #fff;
+    }
+    #btn-save:hover { opacity: 0.88; }
+    #btn-cancel {
+      background: transparent;
+      border: 1px solid var(--border-hover);
+      color: var(--muted);
+    }
+    #btn-cancel:hover { color: var(--text); border-color: var(--text); }
+
+    /* ── HEADER ── */
+    header {
+      padding: 56px 24px 32px;
+      text-align: center;
+    }
+    .logo {
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      letter-spacing: 0.2em;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-bottom: 48px;
+    }
+    .logo span { color: var(--accent); }
+
+    /* ── SEARCH BOX ── */
+    .search-wrap {
+      max-width: 640px;
+      margin: 0 auto;
+      position: relative;
+    }
+    #search-input {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 16px 60px 16px 24px;
+      font-size: 16px;
+      font-family: 'Georgia', serif;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    #search-input::placeholder { color: var(--muted); }
+    #search-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+    #search-btn {
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: none;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: opacity 0.15s;
+    }
+    #search-btn:hover { opacity: 0.85; }
+    #search-btn svg { width: 16px; height: 16px; fill: #fff; }
+
+    /* ── FILTERS ── */
+    .filters {
+      max-width: 640px;
+      margin: 16px auto 0;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .filter-pill {
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 5px 14px;
+      font-size: 12px;
+      font-family: 'Courier New', monospace;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.15s;
+      letter-spacing: 0.03em;
+    }
+    .filter-pill:hover { border-color: var(--border-hover); color: var(--text); }
+    .filter-pill.active {
+      background: var(--accent-dim);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* ── MAIN CONTENT ── */
+    main {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 32px 24px 80px;
+      width: 100%;
+      flex: 1;
+    }
+
+    /* ── STATUS ── */
+    #status {
+      font-size: 13px;
+      color: var(--muted);
+      font-family: 'Courier New', monospace;
+      margin-bottom: 24px;
+      min-height: 20px;
+    }
+
+    /* ── RESULTS ── */
+    #results { display: flex; flex-direction: column; gap: 4px; }
+
+    .result-item {
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      text-decoration: none;
+      display: block;
+      transition: background 0.15s, border-color 0.15s;
+      cursor: pointer;
+    }
+    .result-item:hover {
+      background: var(--surface);
+      border-color: var(--border);
+    }
+
+    .result-url {
+      font-size: 12px;
+      font-family: 'Courier New', monospace;
+      color: var(--muted);
+      margin-bottom: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .result-url .domain { color: var(--accent); }
+
+    .result-title {
+      font-size: 17px;
+      color: var(--text);
+      font-family: 'Georgia', serif;
+      margin-bottom: 6px;
+      line-height: 1.4;
+    }
+    .result-item:hover .result-title { color: var(--accent); }
+
+    .result-snippet {
+      font-size: 14px;
+      color: var(--muted);
+      font-family: sans-serif;
+      line-height: 1.6;
+    }
+
+    /* ── PAGINATION ── */
+    #pagination {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 36px;
+      justify-content: center;
+    }
+    .page-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 8px 18px;
+      font-size: 13px;
+      font-family: 'Courier New', monospace;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .page-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+    .page-btn:disabled { opacity: 0.3; cursor: default; }
+    #page-info { font-size: 13px; font-family: 'Courier New', monospace; color: var(--muted); }
+
+    /* ── SPINNER ── */
+    .spinner {
+      display: none;
+      width: 24px; height: 24px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin: 48px auto;
+    }
+    .spinner.visible { display: block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── EMPTY STATE ── */
+    #empty {
+      text-align: center;
+      padding: 72px 0;
+      display: none;
+    }
+    #empty.visible { display: block; }
+    #empty p { color: var(--muted); font-family: 'Courier New', monospace; font-size: 14px; }
+
+    /* ── WELCOME ── */
+    #welcome {
+      text-align: center;
+      padding: 40px 0;
+    }
+    #welcome p {
+      color: var(--muted);
+      font-size: 14px;
+      font-family: 'Courier New', monospace;
+      line-height: 2;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Config banner -->
+<div id="config-banner">
+  ⚠ API keys not configured — using demo mode
+  <button onclick="openModal()">Configure keys</button>
+</div>
+
+<!-- Config modal -->
+<div id="modal-overlay">
+  <div id="modal">
+    <h2>Configure API keys</h2>
+    <p>
+      You need a <a href="https://developers.google.com/custom-search/v1/introduction" target="_blank">Google Custom Search API key</a>
+      and a <a href="https://programmablesearch.google.com/create/new" target="_blank">Search Engine ID (cx)</a>.
+      Keys are saved in your browser's localStorage and never sent anywhere except Google's API.
+    </p>
+    <div class="field">
+      <label>API Key</label>
+      <input type="text" id="input-apikey" placeholder="AIzaSy..." />
+    </div>
+    <div class="field">
+      <label>Search Engine ID (cx)</label>
+      <input type="text" id="input-cx" placeholder="a1b2c3d4e5f6g7h8i" />
+    </div>
+    <div class="modal-actions">
+      <button id="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button id="btn-save" onclick="saveKeys()">Save & activate</button>
+    </div>
+  </div>
+</div>
+
+<!-- Header & search -->
+<header>
+  <div class="logo">// <span>search</span> console</div>
+  <div class="search-wrap">
+    <input
+      type="text"
+      id="search-input"
+      placeholder="Search anything…"
+      autocomplete="off"
+      spellcheck="false"
+    />
+    <button id="search-btn" onclick="doSearch(1)" aria-label="Search">
+      <svg viewBox="0 0 20 20"><path d="M12.9 14.32a8 8 0 111.41-1.41l4.38 4.39-1.41 1.41-4.38-4.39zM8 14A6 6 0 108 2a6 6 0 000 12z"/></svg>
+    </button>
+  </div>
+  <div class="filters">
+    <button class="filter-pill active" data-type="">All</button>
+    <button class="filter-pill" data-type="site:github.com">GitHub</button>
+    <button class="filter-pill" data-type="filetype:pdf">PDFs</button>
+    <button class="filter-pill" data-type="site:stackoverflow.com">Stack Overflow</button>
+    <button class="filter-pill" data-type="site:reddit.com">Reddit</button>
+  </div>
+</header>
+
+<!-- Results area -->
+<main>
+  <div id="status"></div>
+  <div class="spinner" id="spinner"></div>
+  <div id="welcome">
+    <p>
+      Type a query above and press Enter.<br>
+      Powered by Google Custom Search API.
+    </p>
+  </div>
+  <div id="empty">
+    <p>No results found.</p>
+  </div>
+  <div id="results"></div>
+  <div id="pagination" style="display:none;">
+    <button class="page-btn" id="btn-prev" onclick="changePage(-1)" disabled>← prev</button>
+    <span id="page-info">page 1</span>
+    <button class="page-btn" id="btn-next" onclick="changePage(1)">next →</button>
+  </div>
+</main>
+
+<script>
+  const STORAGE_KEY_API = 'gcs_api_key';
+  const STORAGE_KEY_CX  = 'gcs_cx';
+
+  let apiKey = localStorage.getItem(STORAGE_KEY_API) || '';
+  let cx     = localStorage.getItem(STORAGE_KEY_CX)  || '';
+  let currentPage = 1;
+  let currentQuery = '';
+  let activeFilter = '';
+  let totalResults = 0;
+
+  const banner   = document.getElementById('config-banner');
+  const spinner  = document.getElementById('spinner');
+  const resultsEl = document.getElementById('results');
+  const statusEl  = document.getElementById('status');
+  const welcomeEl = document.getElementById('welcome');
+  const emptyEl   = document.getElementById('empty');
+  const paginationEl = document.getElementById('pagination');
+
+  function updateBanner() {
+    if (apiKey && cx) {
+      banner.style.display = 'none';
+    } else {
+      banner.style.display = 'flex';
+      banner.querySelector('div') && null;
+    }
+  }
+
+  function openModal() {
+    document.getElementById('input-apikey').value = apiKey;
+    document.getElementById('input-cx').value = cx;
+    document.getElementById('modal-overlay').classList.add('open');
+  }
+
+  function closeModal() {
+    document.getElementById('modal-overlay').classList.remove('open');
+  }
+
+  function saveKeys() {
+    const k = document.getElementById('input-apikey').value.trim();
+    const c = document.getElementById('input-cx').value.trim();
+    if (!k || !c) { alert('Please fill in both fields.'); return; }
+    apiKey = k; cx = c;
+    localStorage.setItem(STORAGE_KEY_API, k);
+    localStorage.setItem(STORAGE_KEY_CX, c);
+    closeModal();
+    updateBanner();
+  }
+
+  // Filter pills
+  document.querySelectorAll('.filter-pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      activeFilter = pill.dataset.type;
+      if (currentQuery) doSearch(1);
+    });
+  });
+
+  // Enter key
+  document.getElementById('search-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') doSearch(1);
+  });
+
+  function setLoading(on) {
+    spinner.classList.toggle('visible', on);
+    if (on) {
+      resultsEl.innerHTML = '';
+      welcomeEl.style.display = 'none';
+      emptyEl.classList.remove('visible');
+      paginationEl.style.display = 'none';
+      statusEl.textContent = '';
+    }
+  }
+
+  async function doSearch(page) {
+    const q = document.getElementById('search-input').value.trim();
+    if (!q) return;
+
+    if (!apiKey || !cx) {
+      openModal();
+      return;
+    }
+
+    currentQuery = q;
+    currentPage = page;
+    const start = (page - 1) * 10 + 1;
+    const fullQuery = activeFilter ? `${q} ${activeFilter}` : q;
+
+    setLoading(true);
+
+    try {
+      const url = `https://www.googleapis.com/customsearch/v1?key=${encodeURIComponent(apiKey)}&cx=${encodeURIComponent(cx)}&q=${encodeURIComponent(fullQuery)}&start=${start}`;
+      const res = await fetch(url);
+      const data = await res.json();
+
+      setLoading(false);
+
+      if (data.error) {
+        statusEl.textContent = `Error ${data.error.code}: ${data.error.message}`;
+        return;
+      }
+
+      const items = data.items || [];
+      totalResults = parseInt(data.searchInformation?.totalResults || '0');
+      const time = parseFloat(data.searchInformation?.searchTime || 0).toFixed(2);
+
+      if (items.length === 0) {
+        emptyEl.classList.add('visible');
+        return;
+      }
+
+      statusEl.textContent = `About ${totalResults.toLocaleString()} results (${time}s)`;
+
+      resultsEl.innerHTML = items.map(item => {
+        const urlParts = (item.displayLink || '').split('.');
+        const domain = item.displayLink || '';
+        const snippet = item.snippet?.replace(/\n/g, ' ') || '';
+        return `
+          <a class="result-item" href="${escHtml(item.link)}" target="_blank" rel="noopener">
+            <div class="result-url"><span class="domain">${escHtml(domain)}</span> › ${escHtml(item.link.replace(/^https?:\/\/[^/]+/, '').slice(0,60))}</div>
+            <div class="result-title">${escHtml(item.title)}</div>
+            <div class="result-snippet">${escHtml(snippet)}</div>
+          </a>
+        `;
+      }).join('');
+
+      // Pagination
+      const hasMore = totalResults > start + 9;
+      paginationEl.style.display = 'flex';
+      document.getElementById('btn-prev').disabled = page === 1;
+      document.getElementById('btn-next').disabled = !hasMore;
+      document.getElementById('page-info').textContent = `page ${page}`;
+
+    } catch (err) {
+      setLoading(false);
+      statusEl.textContent = `Network error: ${err.message}`;
+    }
+  }
+
+  function changePage(delta) {
+    doSearch(currentPage + delta);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function escHtml(str) {
+    return String(str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  updateBanner();
+</script>
+</body>
+</html>
