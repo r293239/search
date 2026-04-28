@@ -70,7 +70,6 @@ class Crawler:
             return {"url": url, "title": url, "description": "", "text": "", "success": False, "error": str(e)}
     
     def crawl(self, urls):
-        """Crawl all URLs provided, no artificial limit"""
         pages = []
         total = len(urls)
         
@@ -80,9 +79,7 @@ class Crawler:
                 pages.append(page)
                 print(f"✓ [{len(pages)}/{total}] {url}")
             else:
-                print(f"✗ [{i+1}/{total}] {url} - {page.get('error', 'failed')}")
-            
-            # Small delay to be polite to servers
+                print(f"✗ [{i+1}/{total}] {url}")
             if i < total - 1:
                 time.sleep(0.3)
         
@@ -97,38 +94,43 @@ class Indexer:
         words = re.findall(r'\b[a-zA-Z]{2,}\b', text.lower())
         return [w for w in words if w not in self.stopwords]
     
+    def get_previous_index(self):
+        resp = requests.get(f"{PARSE_URL}/classes/Index", params={"order": "-createdAt", "limit": 1}, headers=HEADERS)
+        if resp.status_code == 200:
+            results = resp.json().get('results', [])
+            if results and results[0].get('data'):
+                try:
+                    return json.loads(results[0]['data'])
+                except:
+                    pass
+        return None
+    
     def build_index(self, pages):
         if not pages:
             return None
-            
         N = len(pages)
         doc_tokens = {}
         doc_urls = []
-        
         for i, page in enumerate(pages):
             tokens = self.tokenize(page['text'])
             doc_tokens[i] = tokens
             doc_urls.append(page['url'])
-        
         df = defaultdict(int)
         for tokens in doc_tokens.values():
             for word in set(tokens):
                 df[word] += 1
-        
         index = {}
         for i, tokens in doc_tokens.items():
             tf = defaultdict(int)
             for w in tokens:
                 tf[w] += 1
             max_tf = max(tf.values()) if tf else 1
-            
             for word, count in tf.items():
                 if word not in index:
                     index[word] = {}
                 tf_norm = count / max_tf
                 idf = math.log((N - df[word] + 0.5) / (df[word] + 0.5) + 1)
                 index[word][str(i)] = round(tf_norm * idf, 4)
-        
         return {
             "index": index,
             "urls": doc_urls,
@@ -139,6 +141,35 @@ class Indexer:
         }
     
     def save_to_back4app(self, index_data):
+        previous = self.get_previous_index()
+        
+        if previous and previous.get('urls'):
+            old_urls = previous.get('urls', [])
+            old_titles = previous.get('titles', [])
+            old_snippets = previous.get('snippets', [])
+            existing_urls = set(old_urls)
+            
+            for i, url in enumerate(index_data['urls']):
+                if url not in existing_urls:
+                    old_urls.append(url)
+                    old_titles.append(index_data['titles'][i] if i < len(index_data['titles']) else 'Untitled')
+                    old_snippets.append(index_data['snippets'][i] if i < len(index_data['snippets']) else '')
+                    existing_urls.add(url)
+            
+            merged_pages = []
+            for i, url in enumerate(old_urls):
+                merged_pages.append({
+                    'url': url,
+                    'title': old_titles[i] if i < len(old_titles) else 'Untitled',
+                    'description': old_snippets[i] if i < len(old_snippets) else '',
+                    'text': f"{old_titles[i]} {old_snippets[i]}" if i < len(old_titles) else ''
+                })
+            
+            new_index = self.build_index(merged_pages)
+            if new_index:
+                index_data = new_index
+                print(f"📦 Merged: {len(old_urls)} total pages")
+        
         payload = {
             "data": json.dumps(index_data),
             "docCount": index_data["doc_count"],
@@ -146,7 +177,7 @@ class Indexer:
         }
         resp = requests.post(f"{PARSE_URL}/classes/Index", json=payload, headers=HEADERS)
         if resp.status_code in [200, 201]:
-            print(f"✅ Index saved! {index_data['doc_count']} docs, {len(index_data['index'])} terms")
+            print(f"✅ Saved! {index_data['doc_count']} docs, {len(index_data['index'])} terms")
             return True
         else:
             print(f"❌ Failed: {resp.text}")
@@ -154,7 +185,6 @@ class Indexer:
 
 
 def get_all_queue():
-    """Get ALL pending URLs from the queue"""
     where = json.dumps({"status": "pending"})
     resp = requests.get(f"{PARSE_URL}/classes/CrawlQueue", params={"where": where, "limit": 500}, headers=HEADERS)
     if resp.status_code == 200:
@@ -163,59 +193,41 @@ def get_all_queue():
 
 
 def delete_queue_items(objectIds):
-    """Delete processed queue items in batches"""
-    batch_size = 50
-    for i in range(0, len(objectIds), batch_size):
-        batch = objectIds[i:i+batch_size]
-        for oid in batch:
-            requests.delete(f"{PARSE_URL}/classes/CrawlQueue/{oid}", headers=HEADERS)
-        print(f"  🗑 Deleted {len(batch)} queue items")
+    for oid in objectIds:
+        requests.delete(f"{PARSE_URL}/classes/CrawlQueue/{oid}", headers=HEADERS)
 
 
 def main():
     crawler = Crawler()
     indexer = Indexer()
     
-    # Get everything from queue
     queue_items = get_all_queue()
     
     if not queue_items:
-        print("✅ Queue is empty! Nothing to crawl.")
+        print("✅ Queue is empty!")
         return
     
-    total_in_queue = len(queue_items)
-    print(f"📋 {total_in_queue} URLs in queue")
-    print(f"🕷️ Starting crawl on all {total_in_queue} URLs...")
-    print(f"⚡ Speed: 0.3s delay between requests\n")
+    total = len(queue_items)
+    print(f"📋 {total} URLs in queue")
+    print(f"🕷️ Crawling all...\n")
     
-    # Crawl ALL of them
     urls = [item['url'] for item in queue_items]
     pages = crawler.crawl(urls)
     
     if pages:
-        print(f"\n📊 Successfully crawled {len(pages)}/{total_in_queue} pages")
-        print(f"📊 Building index...")
-        
+        print(f"\n📊 {len(pages)}/{total} pages crawled")
         index = indexer.build_index(pages)
         
         if index:
-            print(f"💾 Saving to Back4App ({index['doc_count']} docs, {len(index['index'])} unique terms)...")
-            
             if indexer.save_to_back4app(index):
-                # Delete ALL queue items that were processed
                 queue_ids = [item['objectId'] for item in queue_items]
                 delete_queue_items(queue_ids)
-                print(f"\n✅ Done! Indexed {len(pages)} pages. Queue cleared.")
-            else:
-                print("❌ Failed to save index")
-        else:
-            print("❌ Failed to build index")
+                print(f"✅ Done! Queue cleared.")
     else:
-        print("❌ No pages were successfully crawled")
+        print("❌ No pages crawled.")
 
 
 if __name__ == "__main__":
     start = time.time()
     main()
-    elapsed = time.time() - start
-    print(f"\n⏱ Total time: {elapsed:.1f} seconds")
+    print(f"\n⏱ {time.time() - start:.1f}s")
